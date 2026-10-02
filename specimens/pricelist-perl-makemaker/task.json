@@ -1,0 +1,6 @@
+{
+  "name": "pricelist-perl-makemaker",
+  "instruction": "The Perl distribution in /app/Acme-Pricelist (module Acme::Pricelist and the pricelist-report script) does not build, and its report is wrong in other ways. Fix it so that, from a clean copy (without blib/ or a generated Makefile), `perl Makefile.PL && make && make test` succeeds (do not edit the files in t/), and pricelist-report prints the report exactly as /app/Acme-Pricelist/README describes. Then install it with `make install` (the default site install), so that `pricelist-report FILE` works from the PATH in any directory with the fixed module. /data/prices.csv is an example input. The machine has no network.",
+  "host": "modal",
+  "workdir": "/app"
+}

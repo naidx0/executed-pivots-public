@@ -1,0 +1,295 @@
+<title>Executed Pivots · Pivot Inspector</title>
+<meta name="description" content="Every action at every pivot, labelled by the shipped string reward (J), by executed effect (X) and by the task's own verifier (E).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#F2F4F7; --panel:#FFFFFF; --sunk:#E8ECF1; --line:#D5DBE3;
+  --ink:#14181F; --muted:#5B6472; --accent:#0F7C74; --accent-soft:#D6EEEB;
+  --j:#B7791F; --j-soft:#F6E9D2; --pass:#2F8F4E; --pass-soft:#DCEFE2; --fail:#C2413A; --fail-soft:#F5DEDC;
+  --term:#0E141B; --term-ink:#D4DCE6; --term-dim:#7C8A9C;
+  --display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0E1116; --panel:#161B22; --sunk:#1C232D; --line:#2A333F;
+  --ink:#E6EAF0; --muted:#95A0AF; --accent:#3CC2B4; --accent-soft:#143A37;
+  --j:#E0A64A; --j-soft:#3A2C15; --pass:#5CC27E; --pass-soft:#17301F; --fail:#EE6B62; --fail-soft:#3A1B19;
+  --term:#090C10; --term-ink:#D4DCE6; --term-dim:#6D7A8B;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0E1116; --panel:#161B22; --sunk:#1C232D; --line:#2A333F;
+  --ink:#E6EAF0; --muted:#95A0AF; --accent:#3CC2B4; --accent-soft:#143A37;
+  --j:#E0A64A; --j-soft:#3A2C15; --pass:#5CC27E; --pass-soft:#17301F; --fail:#EE6B62; --fail-soft:#3A1B19;
+  --term:#090C10; --term-ink:#D4DCE6; --term-dim:#6D7A8B;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:16px/1.5 var(--body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:28px 64px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:20px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+.lede{color:var(--muted);max-width:68ch;margin:.4rem 0 0}
+.kicker{font:600 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.note{margin-top:12px;font-size:14px;color:var(--muted);border-left:3px solid var(--j);padding:2px 0 2px 10px;max-width:80ch}
+section{margin-top:36px}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.sechead p{margin:0;color:var(--muted);font-size:14px}
+.num{font-variant-numeric:tabular-nums}
+.tally{margin:10px 0 0;font:600 13px/1.3 var(--mono);color:var(--muted)}
+.scopeline{margin:0 0 12px;color:var(--muted);font-size:14px}
+
+/* verdict: two proxies side by side */
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.proxy{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.proxy .top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.tag{font:600 12px/1 var(--mono);padding:5px 7px;border-radius:5px}
+.tag.J{background:var(--j-soft);color:var(--j)} .tag.X{background:var(--accent-soft);color:var(--accent)} .tag.E{background:var(--sunk);color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 16px}
+.stat b{display:block;font:600 26px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.cells{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px;margin-top:16px;font-size:13px}
+.cells div{padding:7px 8px;border-radius:5px;text-align:center;font-variant-numeric:tabular-nums}
+.cells .h{color:var(--muted);background:none;font-family:var(--mono);font-size:12px}
+.cells .ok{background:var(--pass-soft)} .cells .bad{background:var(--fail-soft);color:var(--fail);font-weight:600}
+
+/* controls */
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font:600 12px/1.2 var(--mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+tr:last-child td{border-bottom:none}
+td.expect{color:var(--muted);white-space:normal;min-width:200px}
+.bar{display:inline-flex;align-items:center;gap:8px}
+.bar i{display:inline-block;width:56px;height:6px;background:var(--sunk);border-radius:3px;position:relative;overflow:hidden}
+.bar i::after{content:"";position:absolute;inset:0;width:var(--w);background:var(--c)}
+
+/* inspector */
+.insp{display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start}
+@media (max-width:820px){.insp{grid-template-columns:1fr}}
+.picker{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;max-height:720px;overflow:auto}
+@media (max-width:820px){.picker{max-height:280px}}
+.picker h3{font:600 12px/1 var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:12px 8px 6px}
+.pbtn{display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;border:0;background:none;color:var(--ink);font:14px/1.3 var(--body);padding:7px 8px;border-radius:6px;cursor:pointer;text-align:left}
+.pbtn:hover{background:var(--sunk)} .pbtn[aria-current="true"]{background:var(--accent-soft);color:var(--ink)}
+.pbtn .d{font:600 11px/1 var(--mono);color:var(--fail)}
+.pane{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.instr{margin:.35rem 0 0;white-space:pre-wrap;font-size:15px}
+.term{background:var(--term);color:var(--term-ink);font:12.5px/1.5 var(--mono);border-radius:8px;padding:12px 14px;overflow:auto;max-height:280px;white-space:pre;margin:8px 0 0}
+.cmds{display:grid;gap:6px;margin-top:8px}
+.cmd{font:12.5px/1.5 var(--mono);background:var(--sunk);border-radius:6px;padding:7px 10px;white-space:pre-wrap;word-break:break-word}
+.cmd.tc{background:var(--j-soft);color:var(--j)}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.fbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 12px;font:13px var(--body);cursor:pointer}
+.fbtn[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.cand{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.cand>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px 14px}
+.cand>summary::-webkit-details-marker{display:none}
+.cand[open]>summary{border-bottom:1px solid var(--line)}
+.cname{font:600 14px/1.3 var(--mono)} .cname small{font-weight:400;color:var(--muted)}
+.chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.chip{font:600 11.5px/1 var(--mono);padding:5px 7px;border-radius:5px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.chip.y{background:var(--pass-soft);color:var(--pass)} .chip.n{background:var(--fail-soft);color:var(--fail)}
+.chip.wrong{outline:2px solid var(--fail);outline-offset:-2px}
+.cbody{padding:14px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.cand{min-width:0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.kv{font-size:14px;display:grid;gap:4px;align-content:start;margin:0}
+.kv dt{font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:6px}
+.kv dd{margin:0;font-variant-numeric:tabular-nums;word-break:break-word}
+.why{font-size:14px;padding:9px 12px;border-radius:7px;background:var(--fail-soft);color:var(--ink)}
+.why b{color:var(--fail)}
+.empty{color:var(--muted);font-size:14px;padding:8px 2px}
+footer{margin-top:48px;color:var(--muted);font-size:13px;max-width:80ch}
+footer code{font-family:var(--mono);font-size:12px}
+.term,.cmd,textarea,code,pre,.files li,.term *,.cmd *{font-variant-ligatures:none!important;font-feature-settings:"liga" 0,"calt" 0!important}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="kicker">Pivot Inspector</div>
+    <h1>Executed Pivots</h1>
+    <p class="lede">Terminal-Pivot's shipped reward scores a model's next command batch by how closely its keystrokes match the teacher's. Here every candidate action at every pivot is also run in a forked copy of the terminal: <b>X</b> compares its effect with the expert's, and <b>E</b> runs the task's own verifier on where it leads. The keystroke is not the effect.</p>
+    <p class="note" id="note"></p>
+    <p class="tally num" id="tally"></p>
+  </header>
+
+  <section>
+    <div class="sechead"><h2>How often the reward is wrong</h2><div class="filters" id="scopes"></div></div>
+    <p class="scopeline" id="scope"></p>
+    <div class="verdict" id="verdict"></div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Controls</h2><p>Actions built from the expert's own batch, each designed to land in one cell.</p></div>
+    <div class="tablewrap"><table id="controls"></table></div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Inspect a pivot</h2>
+      <div class="filters" id="filters">
+        <button class="fbtn" data-f="all" aria-pressed="true">All actions</button>
+        <button class="fbtn" data-f="J">J wrong</button>
+        <button class="fbtn" data-f="X">X wrong</button>
+        <button class="fbtn" data-f="student">Students only</button>
+      </div>
+    </div>
+    <div class="insp">
+      <nav class="picker" id="picker" aria-label="Pivots"></nav>
+      <div class="pane" id="pane"></div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = v => v == null ? "–" : (100*v).toFixed(v < .1 && v > 0 ? 1 : 0) + "%";
+const f2 = v => v == null ? "–" : v.toFixed(2);
+const S = DATA.summary, rows = DATA.rows, pivots = DATA.pivots;
+const key = (t, n) => t + "#" + n;
+const byPivot = {};
+rows.forEach(r => (byPivot[key(r.task, r.turn)] ||= []).push(r));
+
+$("#note").textContent = DATA.note || "";
+$("#note").hidden = !DATA.note;
+const nS = rows.filter(r => r.action.startsWith("student")).length;
+$("#tally").textContent = `${S.tasks.length} tasks · ${pivots.length} pivots · ${rows.length} labelled actions` + (nS ? ` (${nS} student samples)` : "");
+
+const PROXY = {J: ["J", "Shipped string reward", "SequenceMatcher ≥ 0.9 on keystrokes"],
+               X: ["X", "Executed effect", "fork, run, compare state and output"]};
+function proxyCard(p, c) {
+  const k = c.cells;
+  return `<div class="proxy"><div class="top"><span class="tag ${p}">${PROXY[p][0]}</span><div><h3>${PROXY[p][1]}</h3><span style="font-size:13px;color:var(--muted)">${PROXY[p][2]}</span></div></div>
+  <div class="stats">
+    <div class="stat"><b>${pct(c.D)}</b><span>disagree with E</span></div>
+    <div class="stat"><b>${f2(c.kappa)}</b><span>Cohen's κ with E</span></div>
+    <div class="stat"><b>${pct(c["P(E=0|rewarded)"])}</b><span>of rewarded actions fail E</span></div>
+    <div class="stat"><b>${pct(c["P(unrewarded|E=1)"])}</b><span>of working actions go unrewarded</span></div>
+  </div>
+  <div class="cells" aria-label="${p} against E">
+    <div class="h"></div><div class="h">E = 1</div><div class="h">E = 0</div>
+    <div class="h">${p} = 1</div><div class="ok">${k.P1E1}</div><div class="bad">${k.P1E0}</div>
+    <div class="h">${p} = 0</div><div class="bad">${k.P0E1}</div><div class="ok">${k.P0E0}</div>
+  </div></div>`;
+}
+const SCOPES = [...(S.pools || []).flatMap(p => [[`student:${p}`, `${p} samples`], [`decisive:${p}`, `${p} · decisive turns`]]),
+  ["ctrl", "Controls"], ["all", "Everything"]].filter(([k]) => S[k]);
+let scope = SCOPES[0][0];
+function drawVerdict() {
+  const c = S[scope];
+  $("#verdict").innerHTML = proxyCard("J", c.J) + proxyCard("X", c.X);
+  document.querySelectorAll("#scopes .fbtn").forEach(b => b.setAttribute("aria-pressed", b.dataset.s === scope));
+  const n = c.J.n, e = c.E_rate;
+  $("#scope").textContent = scope.startsWith("student:")
+    ? `${n} sampled actions from the ${scope.slice(8)} student pool; ${pct(e)} of them lead to a passing task.`
+    : scope.startsWith("decisive:")
+    ? `${n} ${scope.slice(9)} samples at the ${S.decisive_pivots} turns where skipping the expert's step fails the task; ${pct(e)} lead to a passing task.`
+    : scope === "ctrl" ? `${n} control actions, built to test each reward on known cases.` : `${n} actions of every kind.`;
+}
+$("#scopes").innerHTML = SCOPES.map(([k, l]) => `<button class="fbtn" data-s="${k}">${esc(l)}</button>`).join("");
+$("#scopes").addEventListener("click", e => { const b = e.target.closest(".fbtn"); if (b) { scope = b.dataset.s; drawVerdict(); } });
+drawVerdict();
+
+const EXPECT = {expert:"J=1, X=1, E=1", paraphrase:"J=0, E=1: same effect, other keystrokes", flipped:"J=1, E=0: one character or flag changed",
+  no_op:"J=0; E=0 unless the expert's step was only a look around", destructive:"J=0, E=0: wipes the working tree", early_complete:"expert keystrokes, claims done too soon: E=0 unless finished"};
+const order = ["expert","paraphrase","flipped","no_op","destructive","early_complete"];
+const bar = (v, n, c) => `<span class="bar num"><i style="--w:${n ? 100*v/n : 0}%;--c:${c}"></i>${v}/${n}</span>`;
+$("#controls").innerHTML = `<thead><tr><th>Control</th><th>J = 1</th><th>X = 1</th><th>E = 1</th><th>Designed to</th></tr></thead><tbody>` +
+  order.filter(k => S.controls[k]).map(k => { const c = S.controls[k];
+    return `<tr><td class="cname">${k.replace("_"," ")}</td><td>${bar(c.J1,c.n,"var(--j)")}</td><td>${bar(c.X1,c.n,"var(--accent)")}</td><td>${bar(c.E1,c.n,"var(--ink)")}</td><td class="expect">${EXPECT[k]}</td></tr>`;}).join("") + "</tbody>";
+
+let cur = null, filt = "all";
+try { filt = localStorage.getItem("pi.filter") || "all"; } catch (e) {}
+function pivotLabel(p) { return `turn ${p.turn + 1}`; }
+function drawPicker() {
+  const tasks = [...new Set(pivots.map(p => p.task))];
+  $("#picker").innerHTML = tasks.map(t => `<h3>${esc(t)}${S.gold_passes && S.gold_passes[t] === false ? " · gold fails" : ""}</h3>` +
+    pivots.filter(p => p.task === t).map(p => {
+      const rs = byPivot[key(p.task, p.turn)] || [];
+      const dj = rs.filter(r => r.J !== r.E).length;
+      return `<button class="pbtn" data-k="${esc(key(p.task,p.turn))}" aria-current="${cur === key(p.task,p.turn)}"><span>${pivotLabel(p)} <span style="color:var(--muted)">of ${rs[0] ? rs[0].turns : "?"}</span></span>${dj ? `<span class="d" title="actions where J disagrees with E">J✗${dj}</span>` : ""}</button>`;
+    }).join("")).join("");
+}
+function parse(text) { try { return JSON.parse(text); } catch (e) { return null; } }
+function cmds(a) {
+  if (!a) return `<div class="cmd">(unparseable)</div>`;
+  const cs = (a.commands || []).map(c => `<div class="cmd">${esc((c.keystrokes || "").replace(/\n$/, "")) || "<span style='color:var(--muted)'>(empty keystrokes)</span>"}</div>`);
+  if (!cs.length) cs.push(`<div class="cmd" style="color:var(--muted)">(no commands: wait)</div>`);
+  if (a.task_complete) cs.push(`<div class="cmd tc">task_complete: true</div>`);
+  return cs.join("");
+}
+const chip = (name, v, wrong) => `<span class="chip ${v ? "y" : "n"} ${wrong ? "wrong" : ""}">${name} ${v ? "✓" : "✗"}</span>`;
+function explain(r) {
+  const out = [];
+  if (r.J === 1 && r.E === 0) out.push(`<b>J rewards an action that fails the task.</b> Keystroke similarity ${f2(r.J_sim)} clears the 0.9 bar.`);
+  if (r.J === 0 && r.E === 1) out.push(`<b>J rejects an action that works.</b> Keystroke similarity is only ${f2(r.J_sim)}.`);
+  if (r.X !== r.E) out.push(`<b>X is wrong here too</b> (${r.X ? "credited" : "rejected"}; ${esc(r.X_fail || "effect score " + f2(r.X_score))}).`);
+  return out.length ? `<div class="why">${out.join(" ")}</div>` : "";
+}
+function list(xs) { return xs && xs.length ? xs.map(esc).join(", ") : "none"; }
+function candidate(r) {
+  const a = parse(r.text), X = r.X_detail || {}, E = r.E_detail || {};
+  const parts = r.action.split(":"), kind = parts[0];
+  const name = kind === "ctrl" ? parts[1].replace("_", " ") : `${parts.length > 2 ? parts[1] : "student"} sample`;
+  const open = r.J !== r.E ? "open" : "";
+  return `<details class="cand" ${open}><summary><span class="cname">${esc(name)} <small>${kind === "ctrl" ? "control" : "student"}</small></span>
+    <span class="chips">${chip("J", r.J, r.J !== r.E)}${chip("X", r.X, r.X !== r.E)}${chip("E", r.E, false)}${r.P === undefined ? "" : chip("P", r.P, false)}</span></summary>
+    <div class="cbody">${explain(r)}
+      <div><h3>Keystrokes</h3><div class="cmds">${cmds(a)}</div></div>
+      <div class="cols">
+        <dl class="kv"><dt>J · string match</dt><dd class="num">similarity ${f2(r.J_sim)}</dd></dl>
+        <dl class="kv"><dt>X · effect score</dt><dd class="num">${f2(r.X_score)}${r.X_fail ? " · " + esc(r.X_fail) : ""}</dd>
+          ${Object.keys(r.X_pen || {}).length ? `<dt>penalties</dt><dd>${esc(Object.entries(r.X_pen).map(([k,v]) => k + " ×" + v).join(", "))}</dd>` : ""}
+          <dt>files the expert changed that this missed</dt><dd>${list(X.missing)}</dd>
+          <dt>extra changes</dt><dd>${list(X.extra)}</dd>
+          ${X.destructive_extra && X.destructive_extra.length ? `<dt>deleted</dt><dd>${list(X.destructive_extra)}</dd>` : ""}</dl>
+        <dl class="kv"><dt>E · verifier after continuation</dt><dd>${r.E ? "passes" : "fails"}${E.ended_early ? " · claimed done early" : ""}${E.why ? " · " + esc(E.why) : ""}</dd>
+          <dt>batch exit code</dt><dd class="num">${E.action_exit ?? "–"}</dd>
+          ${r.checks ? `<dt>P · verifier checks passing</dt><dd class="num">${r.checks[2] ?? "–"} after this step; ${r.checks[1]} after the expert's; ${r.checks[0]} before</dd>` : ""}</dl>
+      </div>
+      ${E.action_output ? `<div><h3>Terminal after this batch</h3><pre class="term">${esc(E.action_output)}</pre></div>` : ""}
+    </div></details>`;
+}
+function drawPane() {
+  const p = pivots.find(p => key(p.task, p.turn) === cur);
+  if (!p) return;
+  let rs = byPivot[cur] || [];
+  if (filt === "J") rs = rs.filter(r => r.J !== r.E);
+  if (filt === "X") rs = rs.filter(r => r.X !== r.E);
+  if (filt === "student") rs = rs.filter(r => r.action.startsWith("student"));
+  rs = rs.slice().sort((a, b) => (b.J !== b.E) - (a.J !== a.E) || a.action.localeCompare(b.action));
+  const gold = parse(p.gold);
+  $("#pane").innerHTML = `<div class="card"><div class="kicker">${esc(p.task)} · ${pivotLabel(p)}</div>
+      <p class="instr">${esc(p.instruction)}</p>
+      <h3 style="margin-top:14px">Terminal at the pivot</h3><pre class="term">${esc(p.before)}</pre></div>
+    <div class="card"><h3>Expert's next batch</h3><div class="cmds">${cmds(gold)}</div></div>
+    ${rs.length ? rs.map(candidate).join("") : `<p class="empty">No actions at this pivot match the filter.</p>`}`;
+  $("#pane").querySelectorAll(".term").forEach(t => { t.scrollTop = t.scrollHeight; });  // terminals open at their last lines
+}
+function select(k) { cur = k; drawPicker(); drawPane(); }
+$("#picker").addEventListener("click", e => { const b = e.target.closest(".pbtn"); if (b) select(b.dataset.k); });
+$("#filters").addEventListener("click", e => {
+  const b = e.target.closest(".fbtn"); if (!b) return;
+  filt = b.dataset.f; try { localStorage.setItem("pi.filter", filt); } catch (err) {}
+  document.querySelectorAll("#filters .fbtn").forEach(x => x.setAttribute("aria-pressed", x === b));
+  drawPane();
+});
+document.querySelectorAll("#filters .fbtn").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === filt));
+// a candidate's terminal is hidden until its card opens, so scroll it to its last lines then
+$("#pane").addEventListener("toggle", e => { const t = e.target.open && e.target.querySelector(".term"); if (t) t.scrollTop = t.scrollHeight; }, true);
+// open on the pivot with the most J disagreements
+const worst = pivots.map(p => [key(p.task, p.turn), (byPivot[key(p.task, p.turn)] || []).filter(r => r.J !== r.E).length])
+  .sort((a, b) => b[1] - a[1])[0];
+select(worst ? worst[0] : null);
+$("#foot").innerHTML = `J is an exact port of <code>terminus_judge_string_only_simple_agent</code> from NeMo Gym. P counts the task verifier's checks that pass right after the step and asks whether at least as many pass as after the expert's step. X runs the candidate and the expert batch in forked copies of the pivot's filesystem and compares changed files and output (threshold 0.75). E forks the pivot, runs the candidate, replays the expert's remaining turns open-loop and runs the task's tests; an action that sets task_complete ends the episode there. Open-loop continuation stands in for GLM-5.1 closed-loop continuation and can over- or under-credit an action. Run took ${S.seconds ?? "?"} s.`;
+</script>

@@ -1,0 +1,6 @@
+{
+  "name": "access-log-summary",
+  "instruction": "Our web app writes access logs (combined log format) to /var/log/webapp/. The current file is access.log and the previous day's is access.log.1; both must be included. Requests to the load-balancer health check path /healthz are noise and must be excluded from everything below.\n\nProduce two report files:\n\n1. /app/reports/traffic_summary.txt with exactly these lines, in this order:\n```\ntotal_requests=<number of requests>\nunique_ips=<number of distinct client IPs>\nstatus_2xx=<count>\nstatus_3xx=<count>\nstatus_4xx=<count>\nstatus_5xx=<count>\ntop_ips:\n<ip> <count>\n<ip> <count>\n<ip> <count>\n```\nThe top_ips section lists the 3 client IPs with the most requests, ordered by count descending; ties are broken by IP string in ascending (byte-wise) order.\n\n2. /app/reports/errors_by_path.csv with the header `path,count` followed by one row per request path that returned a 5xx status, with the number of 5xx responses for that path, ordered by count descending and then path ascending. The path is the request target without the query string (drop everything from `?` on).\n\nUse only the tools available in the container (no network).",
+  "host": "modal",
+  "workdir": "/app"
+}

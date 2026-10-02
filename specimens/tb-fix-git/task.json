@@ -1,0 +1,7 @@
+{
+  "name": "tb-fix-git",
+  "instruction": "I just made some changes to my personal site and checked out master, but now I can't find those changes. Please help me find them and merge them into master.",
+  "host": "modal",
+  "workdir": "/app/personal-site",
+  "source": "Terminal-Bench original-tasks/fix-git (Apache-2.0), difficulty easy"
+}

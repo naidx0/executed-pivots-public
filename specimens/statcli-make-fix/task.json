@@ -1,0 +1,6 @@
+{
+  "name": "statcli-make-fix",
+  "instruction": "/app/statcli is a small C command-line tool that reads whitespace-separated numbers on stdin and prints count, mean, median and (population) standard deviation, each on its own line as `name=value`, with the values printed to 3 decimal places (count as an integer).\n\nRight now it does not build, and once it builds its own tests do not pass. Fix the project so that, from /app/statcli:\n- `make` builds the binary bin/statcli without errors,\n- `make test` passes,\n- the median is correct for any input (for an even count it is the mean of the two middle values).\n\nDo not modify the test cases in tests/cases.",
+  "host": "modal",
+  "workdir": "/app"
+}

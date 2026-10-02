@@ -1,0 +1,7 @@
+{
+  "name": "tb-cpp-compatibility",
+  "instruction": "One of my template function (located in /app/sum_array.h) cannot be used by my C++11 projects.\nCan you edit the /app/sum_array.h to downgrade the implementation such that it is compatible with C++11 projects while keeping the same interface.",
+  "host": "modal",
+  "workdir": "/app",
+  "source": "Terminal-Bench original-tasks/cpp-compatibility (Apache-2.0), difficulty easy"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "acme-worker-ini-unit",
+  "instruction": "The acme queue worker does not start. Repair its systemd unit /etc/systemd/system/acme-worker.service and its config /etc/acme/worker.ini so that the unit's ExecStart runs /app/worker/worker.py with that config and `--once`, and the config passes the worker's own `--check`. Keep the intended settings: batch size 25, the database password `s3cr%t` exactly, log level info, and the same queue and report paths. Do not change /app/worker/worker.py or /app/worker/unitcheck.py.\n\nThere is no systemd in this container: check the unit with `python3 /app/worker/unitcheck.py /etc/systemd/system/acme-worker.service`, and enable it the way `systemctl enable` would (the WantedBy symlink). Finally, run the unit's command once, as systemd would, to process the jobs waiting in /srv/queue/inbox (each job must be processed exactly once).",
+  "host": "modal",
+  "workdir": "/app"
+}

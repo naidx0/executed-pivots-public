@@ -1,0 +1,6 @@
+{
+  "name": "jq-signup-rollup",
+  "instruction": "The growth dashboard's signup numbers are wrong. /app/etl/rollup.sh builds /app/out/signups_by_plan.csv from the product events in /data/events (see /app/etl/README.md for the file layout and the two event schemas).\n\nFix /app/etl/rollup.sh so that, for any events directory passed as its first argument (and an output path as its second; the defaults stay /data/events and /app/out/signups_by_plan.csv):\n- it reads every day file in the directory, including the gzip-compressed rotated ones;\n- it handles both event schemas (v1 and v2);\n- it counts each signup event once, even when a retried delivery repeats it (same event_id);\n- the CSV has the header `plan,signups,unique_users`, one row per plan with its number of signup events and the number of distinct users who signed up to it, ordered by signups descending and then plan name ascending.\n\nThen run it to regenerate /app/out/signups_by_plan.csv from /data/events. Use the tools in the container (bash, jq, awk, sort, gzip); there is no network.",
+  "host": "modal",
+  "workdir": "/app"
+}

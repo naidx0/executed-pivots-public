@@ -1,0 +1,6 @@
+{
+  "name": "tally-go-build",
+  "instruction": "The Go word-frequency tool in /app/tally does not build, and its release build is wrong in other ways. Fix the project so that, from a clean copy of /app/tally (without bin/):\n- `make build` builds bin/tally;\n- `make test` passes (do not edit the _test.go files);\n- `bin/tally --version` prints `tally <version>` with the version read from the VERSION file at build time;\n- `tally [--top N] FILE` prints `words=W distinct=D` and then the N most frequent words with their counts, most frequent first and words with the same count in alphabetical order (see /app/tally/README.md).\n\nThen build it in /app/tally and install it with `make install` (PREFIX=/usr/local), so that `tally` works from the PATH in any directory. /data/words.txt is an example input. The machine has no network; the project has no third-party modules.",
+  "host": "modal",
+  "workdir": "/app"
+}

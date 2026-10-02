@@ -1,0 +1,6 @@
+{
+  "name": "csvsum-npm-package",
+  "instruction": "The in-house npm package `csvsum` in /app/csvsum is broken: `npm test` fails, the package cannot be loaded with `require`, and a tarball from `npm pack` does not give a working `csvsum` command.\n\nFix the package so that:\n- `npm test` passes in /app/csvsum (do not edit the files under /app/csvsum/test);\n- `require('/app/csvsum')` loads the package and exports `summarize` and `format`;\n- a tarball made with `npm pack` from a clean copy of /app/csvsum, installed on its own into another prefix, provides a `csvsum` command that works (`csvsum FILE [COLUMN]`, see the README);\n- `csvsum` is installed globally from /app/csvsum with `npm install -g`, so that `csvsum FILE [COLUMN]` works on the PATH from any directory. /data/sales.csv is an example input.\n\nThe machine has no network; npm is already configured for offline use.",
+  "host": "modal",
+  "workdir": "/app"
+}

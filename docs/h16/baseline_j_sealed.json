@@ -1,0 +1,22 @@
+{
+  "baseline": "J = SequenceMatcher(expert, cand).ratio() >= 0.9",
+  "files": {
+    "code_exec": {
+      "candidates": "candidates_code_exec.jsonl",
+      "candidates_sha256": "0b5e8d398931781105719d45a8867fac833a7324a01b20506a0507cf06e19536",
+      "j_credits": 99,
+      "j_labels": "baseline_j_code_exec.jsonl",
+      "j_labels_sha256": "5b4da721fb21fffb3dac3e7ef0d46474f6bf59c1c96716d51f67abec88b75363",
+      "n": 368
+    },
+    "tool_use": {
+      "candidates": "candidates_tool_use.jsonl",
+      "candidates_sha256": "0b37c88bcf0719431384bd11cff4a937bb2fd71d2699d2efef10e2a8b96cc19a",
+      "j_credits": 46,
+      "j_labels": "baseline_j_tool_use.jsonl",
+      "j_labels_sha256": "56efc54126b3693e82f412db34df98ce232222b5098a0edf2ffd18f7e8c504b8",
+      "n": 377
+    }
+  },
+  "hypothesis": "H16"
+}

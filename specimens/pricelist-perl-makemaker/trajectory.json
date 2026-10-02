@@ -1,0 +1,136 @@
+[
+ {
+  "analysis": "I'm at /app. The Perl distribution in /app/Acme-Pricelist has to build, pass its tests and be installed so pricelist-report works from the PATH. First its layout, Makefile.PL and README.",
+  "plan": "cd into the distribution, list its files and read Makefile.PL and the README.",
+  "commands": [
+   {
+    "keystrokes": "cd /app/Acme-Pricelist\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "find . -type f | sort\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "cat Makefile.PL README\n",
+    "duration": 0.1
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "It is an ExtUtils::MakeMaker dist: lib/Acme/Pricelist.pm, bin/pricelist-report, t/01-parse.t and t/02-summary.t. Makefile.PL lists EXE_FILES => ['bin/pricelist_report'], with an underscore. The README wants items by line total (largest first, ties by sku), then TOTAL and AVG with two decimals.",
+  "plan": "Generate the Makefile and build, to see where it breaks.",
+  "commands": [
+   {
+    "keystrokes": "perl Makefile.PL && make 2>&1 | tail -n 5\n",
+    "duration": 10.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "perl Makefile.PL writes the Makefile, but make stops: No rule to make target 'bin/pricelist_report', needed by 'blib/script/pricelist_report'. The script is bin/pricelist-report.",
+  "plan": "Fix EXE_FILES to the real file name, regenerate the Makefile, build, and run the tests.",
+  "commands": [
+   {
+    "keystrokes": "sed -i \"s#'bin/pricelist_report'#'bin/pricelist-report'#\" Makefile.PL && grep -n EXE_FILES Makefile.PL\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "perl Makefile.PL > /dev/null && make 2>&1 | tail -n 2\n",
+    "duration": 10.0
+   },
+   {
+    "keystrokes": "make test 2>&1 | tail -n 12\n",
+    "duration": 10.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "The build copies bin/pricelist-report into blib/script now. make test fails: t/02-summary.t fails subtest 1 of 3 (Result: FAIL, 1/7 subtests failed); t/01-parse.t is not in the failure summary.",
+  "plan": "Read the first test of t/02-summary.t and the sort in summarize().",
+  "commands": [
+   {
+    "keystrokes": "sed -n '6,7p' t/02-summary.t\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "grep -n -A 4 '^sub summarize' lib/Acme/Pricelist.pm\n",
+    "duration": 0.1
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "Test 1 expects the skus in the order Y W Z X for totals 100, 10, 10 and 9.5. summarize() sorts with `$b->{total} cmp $a->{total}`: cmp compares strings, so 9.5 sorts above 100 and 10. Line totals need the numeric <=>.",
+  "plan": "Switch the total comparison to <=>, keeping the sku tie-break, and rerun the tests.",
+  "commands": [
+   {
+    "keystrokes": "sed -i 's/\\$b->{total} cmp \\$a->{total}/$b->{total} <=> $a->{total}/' lib/Acme/Pricelist.pm && grep -n 'sort {' lib/Acme/Pricelist.pm\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "make test 2>&1 | tail -n 4\n",
+    "duration": 10.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "All tests pass (Files=2, Tests=7, Result: PASS). Before installing, the report itself against the README.",
+  "plan": "Run the built script from blib on /data/prices.csv.",
+  "commands": [
+   {
+    "keystrokes": "perl -Mblib blib/script/pricelist-report /data/prices.csv\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "The items come out in the right order (C300 99.99, A100 13.50, B200 12.50, E500 10.00, D400 9.60) and TOTAL 145.59, but the last line is `AVG 29`: format_report prints the mean with %d, and the README wants two decimals (29.12). The tests do not cover it.",
+  "plan": "Print AVG with %.2f, rebuild and rerun the tests and the report.",
+  "commands": [
+   {
+    "keystrokes": "sed -i 's/sprintf(\"AVG %d\", \\$s->{avg})/sprintf(\"AVG %.2f\", $s->{avg})/' lib/Acme/Pricelist.pm && grep -n 'AVG' lib/Acme/Pricelist.pm\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "make test 2>&1 | tail -n 1\n",
+    "duration": 10.0
+   },
+   {
+    "keystrokes": "perl -Mblib blib/script/pricelist-report /data/prices.csv | tail -n 2\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "Tests still pass, and the report ends with TOTAL 145.59 and AVG 29.12.",
+  "plan": "Install it with make install, then run pricelist-report from the PATH in / and check which module it loads.",
+  "commands": [
+   {
+    "keystrokes": "make install 2>&1 | tail -n 4\n",
+    "duration": 10.0
+   },
+   {
+    "keystrokes": "cd /\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "pricelist-report /data/prices.csv && perl -MAcme::Pricelist -e 'print \"$INC{q(Acme/Pricelist.pm)} $Acme::Pricelist::VERSION\\n\"'\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "make install put the module in /usr/local/share/perl/5.36.0/Acme/Pricelist.pm and the script in /usr/local/bin/pricelist-report. From /, pricelist-report prints the sorted items, TOTAL 145.59 and AVG 29.12, and perl loads Acme::Pricelist 0.03 from the site library. The build, the sort, the AVG format and the install are fixed.",
+  "plan": "The task is complete.",
+  "commands": [],
+  "task_complete": true
+ }
+]

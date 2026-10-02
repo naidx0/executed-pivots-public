@@ -1,0 +1,6 @@
+# anchors.jsonl names checkpoints in a machine-local store; rebuild with scripts/prepare.py
+anchors.jsonl
+*train.jsonl
+*validation.jsonl
+*_prepare.jsonl
+train_metrics.json

@@ -1,0 +1,110 @@
+[
+  {
+    "analysis": "I'm at /app. Migration 002 fails on /app/shop/shop.db. I need to see the project, the README and the failing migration before touching the database.",
+    "plan": "List /app/shop and its migrations, read the README, and print migration 002.",
+    "commands": [
+      {
+        "keystrokes": "ls -la /app/shop /app/shop/migrations\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat /app/shop/README.md\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat /app/shop/migrations/002_unique_email.sql\n",
+        "duration": 0.1
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "/app/shop holds README.md, migrate.py, migrations/ (001_init.sql, 002_unique_email.sql) and shop.db. Migration 002 creates a unique index on lower(trim(email)), so two customers whose emails differ only in case or surrounding spaces will violate it. The README says there is no sqlite3 shell, so I'll use Python's sqlite3 module.",
+    "plan": "Go to /app/shop, read migrate.py to see how migrations are applied and recorded, and run it to see the actual failure.",
+    "commands": [
+      {
+        "keystrokes": "cd /app/shop\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat migrate.py\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "python3 migrate.py; echo rc=$?\n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "migrate.py applies each pending migration in a transaction and records it in schema_migrations; on error it rolls back. Running it fails with `UNIQUE constraint failed: index 'ux_customers_email'` (rc=1), so there are duplicate customers after normalization.",
+    "plan": "Back up the database to /tmp, then profile the data: customer and order counts, the duplicate groups by lower(trim(email)), how many emails are not normalized, and how many orders point at customers that will be merged away.",
+    "commands": [
+      {
+        "keystrokes": "cp shop.db /tmp/shop.db.bak\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "python3 - <<'EOF'\nimport sqlite3\ndb = sqlite3.connect('shop.db')\nprint(db.execute('SELECT count(*) FROM customers').fetchone(), db.execute('SELECT count(*) FROM orders').fetchone())\nfor row in db.execute(\"SELECT lower(trim(email)) AS e, group_concat(id), count(*) FROM customers GROUP BY e HAVING count(*) > 1 ORDER BY e\"):\n    print(row)\nprint('not normalized:', db.execute('SELECT count(*) FROM customers WHERE email <> lower(trim(email))').fetchone()[0])\nprint('orders on duplicate ids:', db.execute('SELECT count(*) FROM orders WHERE customer_id NOT IN (SELECT min(id) FROM customers GROUP BY lower(trim(email)))').fetchone()[0])\nEOF\n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "There are 26 customers and 60 orders. Five emails are duplicated after normalization: ana.lopez@example.com (ids 1, 10, 18), bob@shop.io (2, 7), erin@example.org (5, 15), hana@example.com (9, 24) and jade@shop.io (12, 21). 8 emails are not normalized, and 9 orders belong to duplicate ids, so they must be moved before those customers are deleted.",
+    "plan": "Write a data-fix script in fixups/ that, in one transaction, moves each duplicate's orders to the lowest id of its group, deletes the duplicates, then normalizes every email. Run it.",
+    "commands": [
+      {
+        "keystrokes": "mkdir -p fixups\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat > fixups/002_dedupe_emails.py <<'EOF'\n\"\"\"Data fix for migration 002: normalize emails, merge duplicate customers into the lowest id.\"\"\"\nimport sqlite3\n\ndb = sqlite3.connect('/app/shop/shop.db')\nwith db:\n    groups = db.execute(\"SELECT lower(trim(email)), min(id) FROM customers GROUP BY lower(trim(email))\").fetchall()\n    moved = dropped = 0\n    for email, keep in groups:\n        dups = [i for (i,) in db.execute(\"SELECT id FROM customers WHERE lower(trim(email)) = ? AND id <> ?\", (email, keep))]\n        for d in dups:\n            moved += db.execute(\"UPDATE orders SET customer_id = ? WHERE customer_id = ?\", (keep, d)).rowcount\n            dropped += db.execute(\"DELETE FROM customers WHERE id = ?\", (d,)).rowcount\n    db.execute(\"UPDATE customers SET email = lower(trim(email))\")\nprint(f\"moved {moved} orders, deleted {dropped} duplicate customers\")\nEOF\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "python3 fixups/002_dedupe_emails.py\n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "The fix moved 9 orders and deleted 6 duplicate customers (2 from the ana.lopez group and one from each of the other four), and normalized the emails.",
+    "plan": "Run migrate.py again and print schema_migrations to confirm 002 is recorded.",
+    "commands": [
+      {
+        "keystrokes": "python3 migrate.py; echo rc=$?\n",
+        "duration": 0.5
+      },
+      {
+        "keystrokes": "python3 -c \"import sqlite3; db = sqlite3.connect('shop.db'); print(db.execute('SELECT version, name FROM schema_migrations').fetchall())\" \n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "migrate.py applied 002_unique_email.sql (rc=0), and schema_migrations now holds (1, '001_init') and (2, '002_unique_email').",
+    "plan": "Check the result against the backup: integrity and foreign keys, customer and order counts, the order total, and the kept customers of each merged group. Then run migrate.py once more to confirm nothing is pending.",
+    "commands": [
+      {
+        "keystrokes": "python3 - <<'EOF'\nimport sqlite3\ndb = sqlite3.connect('shop.db')\nold = sqlite3.connect('/tmp/shop.db.bak')\nprint('integrity:', db.execute('PRAGMA integrity_check').fetchone()[0], 'fk problems:', db.execute('PRAGMA foreign_key_check').fetchall())\nprint('customers', old.execute('SELECT count(*) FROM customers').fetchone()[0], '->', db.execute('SELECT count(*) FROM customers').fetchone()[0])\nprint('orders', old.execute('SELECT count(*), sum(total_cents) FROM orders').fetchone(), '->', db.execute('SELECT count(*), sum(total_cents) FROM orders').fetchone())\nprint(db.execute(\"SELECT id, email, name FROM customers WHERE id IN (1, 2, 5, 9, 12)\").fetchall())\nEOF\n",
+        "duration": 0.5
+      },
+      {
+        "keystrokes": "python3 migrate.py\n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "integrity_check is ok and foreign_key_check reports nothing. Customers went from 26 to 20 (6 duplicates merged), orders stayed at 60 with the same sum of total_cents (650456), and the kept customers are the lowest ids with their original names (1 Ana Lopez, 2 Bob Stone, 5 Erin Walsh, 9 Hana Kim, 12 Jade Moreau) and normalized emails. migrate.py reports nothing to migrate at version 2.",
+    "plan": "The task is complete.",
+    "commands": [],
+    "task_complete": true
+  }
+]

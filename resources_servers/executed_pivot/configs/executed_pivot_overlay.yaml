@@ -1,0 +1,40 @@
+# Executed Pivots, local variant: overlay backend (user namespaces + overlayfs, no Docker, no sandbox token).
+# data/anchors.jsonl and the overlay store are built by scripts/prepare.py from specimens/.
+executed_pivot_overlay_resources_server:
+  resources_servers:
+    executed_pivot:
+      entrypoint: app.py
+      backend: overlay
+      overlay_store: /tmp/cleave-overlay-gym
+      anchors_path: data/anchors.jsonl
+      threshold: 0.75
+      min_self_agreement: 1.0
+      cmd_timeout: 30
+      max_concurrency: 8
+      domain: agent
+      verified: false
+      description: Executed Pivots - next terminal action, rewarded by executing it in a fork of the pivot's rebuilt state (local overlay backend)
+      value: Reward what a command does, not how it is spelled
+
+executed_pivot_overlay_simple_agent:
+  responses_api_agents:
+    simple_agent:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: executed_pivot_overlay_resources_server
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      datasets:
+      # All pivots of the specimens, built by scripts/prepare.py (machine-local, not committed). `--set all` is
+      # the eleven (89 pivots): the original six plus the five Dockerfile specimens, which need h24-runner:local.
+      - name: train
+        type: train
+        jsonl_fpath: resources_servers/executed_pivot/data/train.jsonl
+        num_repeats: 1
+        license: TBD  # specimens are original to this repo; the repo's license is not chosen yet
+      - name: example
+        type: example
+        jsonl_fpath: resources_servers/executed_pivot/data/example.jsonl
+        num_repeats: 1

@@ -1,0 +1,30 @@
+# Policy model for executed_pivot rollouts: a Nebius Token Factory model (default Nemotron 3 Nano).
+#
+# Gym's inference_provider server (OpenAI-compatible /v1/chat/completions; its configs/nebius.yaml
+# targets the same host) talks to a local proxy, `python -m pivots.students.tokenfactory --serve 8912`,
+# which forwards to https://api.tokenfactory.nebius.com/v1. The proxy holds the key (read from
+# $NEBIUS_API_KEY or /root/.config/nebius/tf_key), enforces the request budget, stops for good on
+# 401/402/403 or any billing/quota error (Gym then sees a spent key: 429 budget_exceeded), and caches
+# responses on disk. The key never enters Gym's config, logs or rollouts. The proxy serves one model,
+# the one it was started with (--model); `model` below is only the name Gym records.
+#
+#   python -m pivots.students.tokenfactory --serve 8912 --max-requests 60 &
+#   gym eval run --config resources_servers/executed_pivot/configs/executed_pivot_overlay.yaml \
+#       --config resources_servers/executed_pivot/configs/tokenfactory_policy.yaml \
+#       --agent executed_pivot_overlay_simple_agent --split train --limit 6 --num-repeats 5 --concurrency 4 ...
+policy_model:
+  responses_api_models:
+    inference_provider:
+      entrypoint: app.py
+      base_url: ${oc.env:TOKENFACTORY_PROXY_URL,http://127.0.0.1:8912/v1}
+      api_key: held-by-the-local-proxy
+      model: ${oc.env:TOKENFACTORY_MODEL,nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B}
+      # Nemotron returns its reasoning in reasoning_content; Gym turns it into a reasoning item, and the
+      # executed_pivot server scores only the output text (the Terminus-2 JSON).
+      uses_reasoning_parser: true
+      num_concurrent_requests: 4
+      # Plan §5 sampling (temperature 1.0, top_p 0.95); a request's own values win over these.
+      extra_body:
+        temperature: 1.0
+        top_p: 0.95
+        max_tokens: 8192

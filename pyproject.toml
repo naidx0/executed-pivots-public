@@ -1,0 +1,28 @@
+[project]
+name = "executed-pivots"
+version = "0.0.1"
+description = "Executed Pivots: reward a terminal agent's next step by running it in a forked sandbox, not by keystroke similarity."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+contree = ["contree-client"]           # cleave/world/contree.py (low-level client)
+nebius = ["contree-sdk"]              # cleave/world/nebius.py (H32 step runner)
+models = ["openai>=1.40"]
+demo = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cleave*", "pivots*"]
+
+[tool.setuptools.package-data]
+pivots = ["report/*.html", "demo/static/*.html", "demo/stored.json"]

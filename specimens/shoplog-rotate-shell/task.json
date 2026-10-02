@@ -1,0 +1,6 @@
+{
+  "name": "shoplog-rotate-shell",
+  "instruction": "The nightly log rotation script /app/ops/rotate.sh is broken. Fix it so that it rotates every *.log in LOG_DIR exactly as /app/ops/README.md describes (log names can contain spaces), keeps KEEP generations, and writes STATE_DIR/last_rotation.txt. It must work when cron runs it as `/app/ops/rotate.sh` from / with a minimal environment: it reads rotate.conf next to itself unless ROTATE_CONF names another file. Do not change rotate.conf.\n\nThe logs in /srv/shop/logs have not been rotated yet tonight: once the script is fixed, run it on them exactly once (test on copies first if you want; the real logs must end up rotated once).",
+  "host": "modal",
+  "workdir": "/app"
+}

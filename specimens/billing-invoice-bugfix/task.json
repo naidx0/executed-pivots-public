@@ -1,0 +1,6 @@
+{
+  "name": "billing-invoice-bugfix",
+  "instruction": "The billing library in /app/billing has failing unit tests. Run the suite from /app with `python3 -m unittest discover -s tests -v`, find the bugs in the library code, and fix them so that every test passes.\n\nRequirements:\n- Do not modify anything under /app/tests.\n- Pages returned by `paginate` are 1-based: page 1 holds the first `per_page` items.\n- The bulk discount (10% of the line subtotal) applies to lines with a quantity of 10 units or more.\n- Keep the public function names and signatures in billing/invoice.py unchanged.",
+  "host": "modal",
+  "workdir": "/app"
+}

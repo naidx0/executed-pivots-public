@@ -1,0 +1,6 @@
+{
+  "name": "ledger-git-revert",
+  "instruction": "The git repository at /app/ledger is a small tax-calculation library. Its test suite (`python3 -m unittest -v`, run from /app/ledger) started failing after the commit \"Speed up tax computation\".\n\nOn the `main` branch:\n1. Undo that commit without rewriting history: every existing commit must stay in main's history, and the changes made by later commits must be kept.\n2. Commit the result so the working tree is clean and the test suite passes.\n3. Create a branch named `release/1.1` that points at the fixed main commit.\n\nLeave `main` checked out when you are done.",
+  "host": "modal",
+  "workdir": "/app"
+}

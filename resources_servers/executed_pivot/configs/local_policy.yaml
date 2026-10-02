@@ -1,0 +1,32 @@
+# Policy model for executed_pivot rollouts: a local model (llama-server, or Ollama's OpenAI-compatible /v1).
+#
+# Gym's inference_provider server (OpenAI /v1/chat/completions) talks to a local proxy,
+# `python -m pivots.students.local_policy --serve 8913`, which forwards to the model server named by
+# $LOCAL_POLICY_BASE_URL / $LOCAL_POLICY_MODEL (and $LOCAL_POLICY_API_KEY only if that server wants one; no key
+# is ever written here). The proxy applies the timeout and retries, and reduces each reply to the Terminus-2
+# action: <think> blocks and reasoning fields go to reasoning_content, an answer that exists only in the
+# reasoning is lifted out of it, and prose or code fences around the JSON are dropped.
+#
+#   python -m pivots.students.local_policy --serve 8913 --log out/gym/policy.jsonl &
+#   gym eval run --config resources_servers/executed_pivot/configs/executed_pivot_overlay.yaml \
+#       --config resources_servers/executed_pivot/configs/local_policy.yaml \
+#       --agent executed_pivot_overlay_simple_agent --split train --num-repeats 4 --concurrency 1 ...
+#
+# gym/run_local_policy.sh does all of it under the GPU lock.
+policy_model:
+  responses_api_models:
+    inference_provider:
+      entrypoint: app.py
+      base_url: ${oc.env:LOCAL_POLICY_PROXY_URL,http://127.0.0.1:8913/v1}
+      api_key: not-needed-local-proxy
+      # Only the name Gym records; the proxy sends $LOCAL_POLICY_MODEL upstream.
+      model: ${oc.env:LOCAL_POLICY_MODEL,local}
+      # The proxy returns thinking in reasoning_content; Gym makes it a reasoning item and executed_pivot scores
+      # only the output text (the Terminus-2 JSON).
+      uses_reasoning_parser: true
+      # One 8 GB card serves one sequence at a time well; more only queues at llama-server.
+      num_concurrent_requests: 1
+      extra_body:
+        temperature: 1.0
+        top_p: 0.95
+        max_tokens: 4096

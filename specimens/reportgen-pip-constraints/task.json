@@ -1,0 +1,6 @@
+{
+  "name": "reportgen-pip-constraints",
+  "instruction": "The monthly report tool in /app/reportgen does not run: its virtualenv /app/venv has none of its dependencies. Install them into /app/venv from the offline wheelhouse with\n\n    cd /app/reportgen && /app/venv/bin/pip install --no-index --find-links /opt/wheelhouse -r requirements.txt -c constraints.txt\n\nand fix requirements.txt and constraints.txt where they are wrong, so that the same command also succeeds in a fresh Python 3.11 venv and gives a working tool (see /app/reportgen/README.md). Do not change the reportgen code (reportgen/ and bin/) or the wheelhouse. Then:\n- write the report for /data/orders.csv to /app/out/monthly.txt with `/app/reportgen/bin/reportgen /data/orders.csv -o /app/out/monthly.txt`;\n- record the exact installed versions in /app/reportgen/requirements.lock (pip freeze format, one `name==version` per line).\n\nThe machine has no network.",
+  "host": "modal",
+  "workdir": "/app"
+}

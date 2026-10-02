@@ -1,0 +1,6 @@
+{
+  "name": "textstats-pyproject-install",
+  "instruction": "The in-house `textstats` tool in /app/textstats does not install. Install it into the virtualenv at /app/venv as a regular (non-editable) install, so that `/app/venv/bin/textstats FILE` works for any text file, from any working directory; /data/sample.txt is an example input.\n\nThe machine has no network: install with `/app/venv/bin/pip install --no-index --no-build-isolation ...` (setuptools is available to the venv through the system site-packages). Fix the packaging only: do not change the Python source files under src/textstats or the stop-word list. The package must keep supporting the Python version installed on this machine, and a fresh wheel built from /app/textstats must be complete (the installed tool must not depend on files in /app/textstats at run time).",
+  "host": "modal",
+  "workdir": "/app"
+}

@@ -1,0 +1,6 @@
+# NeMo Gym main: app.py needs ReverifyMode and BaseVerifyResponse.mask_sample, which the PyPI
+# release (nemo-gym 0.4.0) lacks. [dev] brings pytest for `gym env test`. This commit pins
+# Python >= 3.13.14. It is the commit the server was tested against.
+nemo-gym[dev] @ git+https://github.com/NVIDIA-NeMo/Gym@2921bf03c9dbe652545c47a246f350b25b8c9843
+# the cleave repo (pivots + cleave.world), two levels up
+-e ../..

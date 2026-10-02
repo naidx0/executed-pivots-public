@@ -1,0 +1,6 @@
+{
+  "name": "shopdb-sql-migrations",
+  "instruction": "The shop's SQLite database /app/shopdb/shop.db is at schema version 2 (migrations 001 and 002 are applied). Bring it up to date: apply the pending migrations in /app/shopdb/migrations with /app/shopdb/migrate.py, fixing the migration runner and the migrations where they are wrong. When you are done:\n- every migration file in migrations/ is applied exactly once and recorded in schema_migrations;\n- orders.total_cents holds each order's total in whole cents as an INTEGER (19.99 -> 1999);\n- no customer or order is lost, duplicated or changed;\n- running migrate.py on an empty database (SHOPDB=/path/to/new.db) builds the same schema and data from scratch, and running it on an up-to-date database changes nothing;\n- a migration that has been applied to shop.db is never edited afterwards (001 and 002 already are).\n\nThen write /app/shopdb/out/top_customers.csv with `python3 /app/shopdb/report.py`.",
+  "host": "modal",
+  "workdir": "/app"
+}

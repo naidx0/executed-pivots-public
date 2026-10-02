@@ -1,0 +1,144 @@
+[
+ {
+  "analysis": "I'm at /app. The acme worker service has to be repaired: its systemd unit, its INI config, and then one batch run. There is no systemd here, so first the files and the helper tools.",
+  "plan": "Read the unit and the config, and list the worker directory and the queue.",
+  "commands": [
+   {
+    "keystrokes": "cat /etc/systemd/system/acme-worker.service /etc/acme/worker.ini\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "ls -la /app/worker /srv/queue/inbox\n",
+    "duration": 0.1
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "The unit runs `/usr/bin/python /app/worker/worker.py --config /etc/acme/worker.conf --once` as a oneshot in /app/worker, WantedBy=multi-user.target. The config is /etc/acme/worker.ini (not .conf); it sets batch_size twice (10, then 25 'raised for the spring backlog'), a dsn with the password s3cr%t, and level = info. /app/worker has worker.py and unitcheck.py; the inbox holds job-1.job to job-4.job.",
+  "plan": "Run unitcheck.py on the unit to get its list of problems.",
+  "commands": [
+   {
+    "keystrokes": "cd /app/worker\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "python3 unitcheck.py /etc/systemd/system/acme-worker.service\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "unitcheck reports: ExecStart executable /usr/bin/python does not exist, config file /etc/acme/worker.conf does not exist, and enabled: no.",
+  "plan": "Find the real python3, fix both paths in ExecStart, and rerun unitcheck.",
+  "commands": [
+   {
+    "keystrokes": "command -v python3; ls -l /usr/bin/python* 2>&1 | head -n 3\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "sed -i 's#^ExecStart=/usr/bin/python /app/worker/worker.py --config /etc/acme/worker.conf --once$#ExecStart=/usr/local/bin/python3 /app/worker/worker.py --config /etc/acme/worker.ini --once#' /etc/systemd/system/acme-worker.service && grep -n '^ExecStart' /etc/systemd/system/acme-worker.service\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "python3 unitcheck.py /etc/systemd/system/acme-worker.service\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "python3 is /usr/local/bin/python3 (there is no /usr/bin/python). With ExecStart fixed, unitcheck runs the config check, which fails: DuplicateOptionError, option 'batch_size' in section 'queue' already exists (line 7). The worker's configparser is strict; the intended value is the later 25.",
+  "plan": "Delete the stale `batch_size = 10` line and run the worker's --check directly.",
+  "commands": [
+   {
+    "keystrokes": "sed -i '/^batch_size = 10$/d' /etc/acme/worker.ini && grep -n 'batch_size' /etc/acme/worker.ini\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "python3 worker.py --config /etc/acme/worker.ini --check; echo rc=$?\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "batch_size is only 25 now, and the next error is an InterpolationSyntaxError: '%' must be followed by '%' or '(', found '%t@db.internal:5432/acme'. The password s3cr%t has a literal %, which configparser's interpolation needs escaped as %%.",
+  "plan": "Escape it as s3cr%%t (the worker then reads s3cr%t) and check again.",
+  "commands": [
+   {
+    "keystrokes": "sed -i 's/s3cr%t@/s3cr%%t@/' /etc/acme/worker.ini && grep -n '^dsn' /etc/acme/worker.ini\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "python3 worker.py --config /etc/acme/worker.ini --check; echo rc=$?\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "The dsn parses now; the check fails on ValueError: log level 'info' is not one of DEBUG, INFO, WARNING, ERROR. The worker compares the level case-sensitively.",
+  "plan": "Set level = INFO, check the config, and rerun unitcheck on the unit.",
+  "commands": [
+   {
+    "keystrokes": "sed -i 's/^level = info$/level = INFO/' /etc/acme/worker.ini\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "python3 worker.py --config /etc/acme/worker.ini --check; echo rc=$?\n",
+    "duration": 1.0
+   },
+   {
+    "keystrokes": "python3 unitcheck.py /etc/systemd/system/acme-worker.service\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "worker.py --check prints config OK: batch_size=25 level=INFO db=db.internal:5432/acme, and unitcheck says unit OK, but enabled: no. `systemctl enable` would create the WantedBy symlink multi-user.target.wants/acme-worker.service pointing at the unit.",
+  "plan": "Create that symlink and confirm unitcheck sees the unit as enabled.",
+  "commands": [
+   {
+    "keystrokes": "mkdir -p /etc/systemd/system/multi-user.target.wants\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "ln -sf /etc/systemd/system/acme-worker.service /etc/systemd/system/multi-user.target.wants/acme-worker.service\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "python3 unitcheck.py /etc/systemd/system/acme-worker.service\n",
+    "duration": 1.0
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "unitcheck: unit OK and enabled: yes. The four queued jobs still have to be processed once.",
+  "plan": "Run the unit's ExecStart the way systemd would (WorkingDirectory /app/worker, a bare environment), then look at the queue and the report.",
+  "commands": [
+   {
+    "keystrokes": "cd /app/worker && env -i PATH=/usr/bin:/bin /usr/local/bin/python3 /app/worker/worker.py --config /etc/acme/worker.ini --once\n",
+    "duration": 1.0
+   },
+   {
+    "keystrokes": "ls /srv/queue/inbox /srv/queue/done\n",
+    "duration": 0.1
+   },
+   {
+    "keystrokes": "cat /srv/queue/report.txt\n",
+    "duration": 0.1
+   }
+  ],
+  "task_complete": false
+ },
+ {
+  "analysis": "processed 4 jobs (db db.internal:5432/acme): the inbox is empty, done holds job-1.job to job-4.job, and report.txt has J001 ada 42, J002 brook 5, J003 chen 21, J004 dana 351. The unit is fixed and enabled, the config keeps batch_size 25, the password and level INFO, and the backlog was processed once.",
+  "plan": "The task is complete.",
+  "commands": [],
+  "task_complete": true
+ }
+]

@@ -1,0 +1,148 @@
+[
+  {
+    "analysis": "I'm at /app. The backup job (script, config and cron snippet under /app/ops) is broken. I need to look at the ops files and the data directory first.",
+    "plan": "List everything under /app and read the ops README.",
+    "commands": [
+      {
+        "keystrokes": "find /app -type f | sort\n",
+        "duration": 0.5
+      },
+      {
+        "keystrokes": "cat /app/ops/README.md\n",
+        "duration": 0.1
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "/app/ops has backup.sh, backup.conf, backup.cron and a README; /app/data holds orders.csv, customers.csv, archive/refunds.csv and notes.txt. The README says the config lives next to the script.",
+    "plan": "Read the script, its config and the cron snippet.",
+    "commands": [
+      {
+        "keystrokes": "cat /app/ops/backup.sh\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat /app/ops/backup.conf\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat /app/ops/backup.cron\n",
+        "duration": 0.1
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "I can already see several problems: (1) backup.sh defaults CONF to /etc/app/backup.conf, but the config is /app/ops/backup.conf; (2) backup.conf has `DEST_DIR = /var/backups/app` with spaces, which bash treats as running a command named DEST_DIR; (3) the loop appends checksums to \"$DEST_DIR/MANIFEST\" while it truncates MANIFEST.txt; (4) the cron line `30 2 * * root ...` has only four time fields, so cron would read 'root' as the day-of-week.",
+    "plan": "Move into /app/ops and reproduce the failure, pointing BACKUP_CONF at the local config with a relative path so I can see how far the script gets.",
+    "commands": [
+      {
+        "keystrokes": "cd /app/ops\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "BACKUP_CONF=./backup.conf bash backup.sh; echo \"exit=$?\"\n",
+        "duration": 1.0
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "As expected, sourcing the config fails with `DEST_DIR: command not found` and the script exits 127 because of set -e.",
+    "plan": "Fix the three problems in the script and config with sed: remove the spaces around '=' in backup.conf, change the default config path in backup.sh to /app/ops/backup.conf, and make the loop write to MANIFEST.txt. Then grep the changed lines.",
+    "commands": [
+      {
+        "keystrokes": "sed -i 's/^DEST_DIR = /DEST_DIR=/' backup.conf\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "sed -i 's|${BACKUP_CONF:-/etc/app/backup.conf}|${BACKUP_CONF:-/app/ops/backup.conf}|' backup.sh\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "sed -i 's|\"$DEST_DIR/MANIFEST\"$|\"$DEST_DIR/MANIFEST.txt\"|' backup.sh\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "grep -n 'DEST_DIR' backup.conf backup.sh\n",
+        "duration": 0.1
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "backup.conf now has `DEST_DIR=/var/backups/app`, backup.sh defaults to /app/ops/backup.conf, and the sha256sum line appends to MANIFEST.txt.",
+    "plan": "Run the script with no environment override and inspect the output directory, the manifest and the tarball listing.",
+    "commands": [
+      {
+        "keystrokes": "./backup.sh; echo \"exit=$?\"\n",
+        "duration": 1.0
+      },
+      {
+        "keystrokes": "ls -la /var/backups/app/\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat /var/backups/app/MANIFEST.txt\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "tar -tzf /var/backups/app/app-data.tar.gz\n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "The script exits 0 and prints `backup ok: /var/backups/app/app-data.tar.gz`. The manifest has three lines for ./archive/refunds.csv, ./customers.csv and ./orders.csv, and the tarball members are relative to /app/data (./orders.csv, ./archive/refunds.csv, ./notes.txt, ...).",
+    "plan": "Cross-check the manifest against a fresh sha256sum of the csv files computed independently.",
+    "commands": [
+      {
+        "keystrokes": "diff <(cd /app/data && find . -type f -name '*.csv' | sort | xargs sha256sum) /var/backups/app/MANIFEST.txt && echo manifest matches\n",
+        "duration": 0.5
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "The manifest matches an independent checksum run. The remaining item is the cron schedule: it needs five time fields followed by the user.",
+    "plan": "Insert the missing day-of-week field in backup.cron, install it as /etc/cron.d/app-backup with mode 644, and print the installed file.",
+    "commands": [
+      {
+        "keystrokes": "sed -i 's|^30 2 \\* \\* root|30 2 * * * root|' backup.cron\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cp backup.cron /etc/cron.d/app-backup && chmod 644 /etc/cron.d/app-backup\n",
+        "duration": 0.1
+      },
+      {
+        "keystrokes": "cat /etc/cron.d/app-backup\n",
+        "duration": 0.1
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "The installed cron file now reads `30 2 * * * root /app/ops/backup.sh >> /var/log/app-backup.log 2>&1`: minute 30, hour 2, every day, as root.",
+    "plan": "Simulate how cron runs the job: from / with an almost empty environment, then confirm the exit status and that the manifest is still correct.",
+    "commands": [
+      {
+        "keystrokes": "cd / && env -i PATH=/usr/bin:/bin /app/ops/backup.sh; echo \"exit=$?\"\n",
+        "duration": 1.0
+      },
+      {
+        "keystrokes": "wc -l /var/backups/app/MANIFEST.txt\n",
+        "duration": 0.1
+      }
+    ],
+    "task_complete": false
+  },
+  {
+    "analysis": "Run from / with a minimal environment, the script still exits 0 and the manifest has 3 lines. The config syntax, default config path, manifest filename and cron schedule are all fixed, the cron entry is installed at /etc/cron.d/app-backup, and the backup artifacts exist in /var/backups/app.",
+    "plan": "Nothing left to do; mark the task complete.",
+    "commands": [],
+    "task_complete": true
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "name": "sensor-site-report",
+  "instruction": "The sensor ingest pipeline in /app/pipeline is missing its aggregation step. Raw sensor dumps live in /data/readings (one JSON file per sensor).\n\nImplement `build_site_summary(records)` in /app/pipeline/report.py and run the pipeline (`run.py`) so that it writes the report to /app/reports/site_summary.csv.\n\nReport format:\n- Header line exactly: site,sensors,readings,mean_value,max_value\n- One row per site, sorted by site name (ascending).\n- Only sensors whose status is \"ok\" count; sensors with any other status are ignored entirely.\n- Readings whose value is null are ignored.\n- sensors = number of ok sensors at the site; readings = number of non-null readings from those sensors.\n- mean_value and max_value are computed over those readings and written with exactly 2 decimal places.\n\n`build_site_summary` takes the list of parsed JSON records (as returned by loader.load_records) and returns the rows as a list of dicts with the keys site, sensors, readings, mean_value, max_value (mean_value and max_value as floats).",
+  "host": "modal",
+  "workdir": "/app"
+}

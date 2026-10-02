@@ -1,0 +1,6 @@
+{
+  "name": "sqlite-email-dedupe",
+  "instruction": "Migration 002 in /app/shop/migrations (a unique index on customers.email) fails when `python3 migrate.py` applies it to /app/shop/shop.db. Fix the data and bring the database to the latest migration using /app/shop/migrate.py, so that schema_migrations records it.\n\nRules for the data fix:\n- Customer emails must be stored normalized: surrounding whitespace removed and all lower case.\n- When several customers have the same normalized email, keep the customer with the lowest id (the original account), move every order of the other customers to it, and delete the other customers. Keep the kept customer's name.\n- No order may be lost or changed apart from its customer_id, and every order must reference an existing customer.\n\nDo not edit the migration files or migrate.py.",
+  "host": "modal",
+  "workdir": "/app"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "backup-cron-repair",
+  "instruction": "The nightly backup job for our app is broken. The job is the script /app/ops/backup.sh, configured by /app/ops/backup.conf, and scheduled by the cron snippet /app/ops/backup.cron.\n\nFix it so that:\n1. Running `/app/ops/backup.sh` with no arguments and no special environment variables exits with status 0 and creates:\n   - /var/backups/app/app-data.tar.gz: a gzip tarball of the contents of /app/data (member paths relative to /app/data), and\n   - /var/backups/app/MANIFEST.txt: `sha256sum` output for every *.csv file under /app/data (recursively), one line per file, sorted by path, with paths written relative to /app/data (for example `./orders.csv`).\n2. /app/ops/backup.cron schedules the script every day at 02:30 as user root, in /etc/cron.d format (minute hour day-of-month month day-of-week user command), and the fixed snippet is installed as /etc/cron.d/app-backup.\n3. Run the backup once so that both files above exist.\n\nDo not change the data in /app/data.",
+  "host": "modal",
+  "workdir": "/app"
+}
