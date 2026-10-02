@@ -1,6 +1,30 @@
-# Executed Pivots
+<p align="center">
+  <a href="https://www.usebastion.io"><img src="docs/media/bastion-mark.svg" width="88" alt="Bastion mark"></a>
+</p>
 
-**Reward an agent's terminal step by what it did, not by what it typed.**
+<h1 align="center">Executed Pivots</h1>
+
+<p align="center"><b>Reward an agent's terminal step by what it did, not by what it typed.</b></p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Platform: Linux or WSL2" src="https://img.shields.io/badge/platform-Linux%20%7C%20WSL2-lightgrey">
+  <img alt="NeMo Gym resources server" src="https://img.shields.io/badge/NeMo%20Gym-resources%20server-76B900">
+  <a href="https://naidx0.github.io/executed-pivots-public/"><img alt="Live demo: Pivot Inspector" src="https://img.shields.io/badge/live%20demo-Pivot%20Inspector-black"></a>
+</p>
+
+<p align="center">
+  <a href="https://naidx0.github.io/executed-pivots-public/"><img src="docs/media/inspector-demo.gif" width="900" alt="The Pivot Inspector: verdict cards for the string reward J and the executed reward X, the control table, then the billing-invoice-bugfix pivot where a sed without -i is paid by J and not by X"></a>
+</p>
+
+<p align="center">
+  <a href="https://naidx0.github.io/executed-pivots-public/"><b>Open the Pivot Inspector</b></a> ·
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#results-at-a-glance">Results</a> ·
+  <a href="RESEARCH.md">Research log</a> ·
+  <a href="https://www.usebastion.io/#research">Bastion research</a>
+</p>
 
 NVIDIA's Terminal-Pivot data trains terminal agents with a reward that compares keystrokes with a teacher's.
 These two commands differ by three characters, and that reward pays both:
@@ -20,6 +44,36 @@ steps where the keystroke reward pays 34. The same holds on two other agent task
 
 **Try it without installing anything:** [Pivot Inspector](https://naidx0.github.io/executed-pivots-public/) shows every
 step, both rewards and what actually ran.
+
+## Results at a glance
+
+J is the reward that ships with Terminal-Pivot (keystroke similarity). X is this repository's executed
+reward. E is the truth: the task's own verifier after the step.
+
+| What was measured | J (keystrokes) | X (executed) | n | Source |
+|---|---:|---:|---|---|
+| Steps where the reward agrees with E, Terminal-Bench | 96 | **176** | of 292 steps on 12 third-party tasks, p = 1.6e-20 | [H50](#terminal-bench-a-second-task-family-h50) |
+| Steps where the reward agrees with E, Nemotron Super | 55 | **88** | of 176 steps, 0 false credits either side | [H40](#every-real-policy-batch) |
+| Working student actions paid | 26 | **94** | of 286 working actions (E = 1), v5 audit | [v5 audit](#audit-with-claude-stand-ins-v5) |
+| Failing control actions paid | 34 | **0** | 186 controls built to fool a string match | [v5 audit](#audit-with-claude-stand-ins-v5) |
+| Labels matching the local runner, in Nebius Sandboxes | | **217 / 218** | stored demo steps, median 3.6 s per step, $0.80 | [H32, H34](#nebius-sandboxes-as-the-step-runner-h32-h34) |
+
+This is a labelling result, not a training result: no policy has been trained on either reward yet.
+The [caveats](#audit-with-claude-stand-ins-v5) and the [discards](RESEARCH.md) are listed in full.
+
+## Screenshots
+
+From the [Pivot Inspector](https://naidx0.github.io/executed-pivots-public/), one static page built from the audit.
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/media/inspector-verdicts.png"><img src="docs/media/inspector-verdicts.png" alt="Verdict cards: on 180 haiku samples J disagrees with E on 65% and leaves 95% of working actions unrewarded; X disagrees on 53% and leaves 78% unrewarded; neither rewards a failing action"></a><br><sub><b>How often each reward is wrong.</b> J and X against the verifier, per sample pool, with the full confusion table.</sub></td>
+    <td width="50%"><a href="docs/media/inspector-flipped.png"><img src="docs/media/inspector-flipped.png" alt="The flipped control at billing-invoice-bugfix turn 4: keystroke similarity 0.99 so J pays it, X effect score 0.04 because invoice.py was not changed, and the suite still reports FAILED (failures=4)"></a><br><sub><b>One flag removed.</b> <code>sed</code> without <code>-i</code>: similarity 0.99, so J pays. The file never changed, so X does not.</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><a href="docs/media/inspector-pivot.png"><img src="docs/media/inspector-pivot.png" alt="Pivot detail for billing-invoice-bugfix turn 4: the task, the terminal at the pivot with four failing tests, and the expert's next batch"></a><br><sub><b>Every pivot, inspectable.</b> The task, the terminal at the pivot, the expert's next batch, then every candidate with its keystrokes, effect and terminal output.</sub></td>
+  </tr>
+</table>
 
 ## Quickstart
 
@@ -66,24 +120,23 @@ after either step. X pays 1.
 
 ## How it works
 
+```mermaid
+flowchart TD
+    A["Terminal-Pivot row<br/>or specimen trajectory"] --> B["Replay<br/>step.sh semantics"]
+    B --> G{"G1 fidelity gate<br/>does the rebuilt world show<br/>what the expert saw?"}
+    G -- no --> N["Task not admitted"]
+    G -- yes --> C["Checkpoint at the pivot<br/>ForkableWorld: overlay, Nebius Sandboxes or Docker"]
+    C --> F1["Fork: run the<br/>teacher's batch"]
+    C --> F2["Fork: run the<br/>student's batch"]
+    F1 --> D["Compare effects<br/>files, deletions, output, cwd,<br/>exports, task_complete"]
+    F2 --> D
+    D --> X["X in {0, 1}"]
+    T["J: the shipped string reward,<br/>ported exactly, on the same text"] -.->|for comparison| X
 ```
- Terminal-Pivot row / specimen trajectory
-            |
-            v
-  replay (step.sh semantics) ---- G1 fidelity gate: does the rebuilt world show what the expert saw?
-            |
-            v
-  checkpoint at the pivot  (ForkableWorld: overlay | Nebius Sandboxes | Docker)
-       |                     |
-     fork                  fork
-       |                     |
-  teacher batch         student batch
-       |                     |
-       +---- compare effects: files, deletions, output, cwd, exports, task_complete ----> X in {0,1}
 
-  J  = the shipped string reward, ported exactly, computed on the same text for comparison
-  audit = J, X and ground-truth labels for every action;  Gym server = X behind /verify;  Inspector = one HTML page
-```
+- **Audit:** J, X and ground-truth labels for every action.
+- **Gym server:** X behind `/verify`.
+- **Inspector:** one HTML page over an audit run.
 
 **World backends** (`cleave/world/`). One contract, `ForkableWorld` in `base.py`: `checkpoint`, `fork`, `run`,
 `put`, `get`. Checkpoints are immutable ids and forks start from them.
@@ -398,3 +451,10 @@ re-measured: false credits stayed 0, and working credit went 91 to 89 (H20) and 
 ## License
 
 Apache-2.0. The specimens are original to this repo. Terminal-Pivot is CC-BY-4.0 and is not redistributed here.
+
+---
+
+<p align="center">
+  <a href="https://www.usebastion.io"><img src="docs/media/bastion-mark.svg" width="40" alt="Bastion"></a><br>
+  <sub>Executed Pivots is <a href="https://www.usebastion.io/#research">research from Bastion</a>, built for the Nebius hackathon.</sub>
+</p>
