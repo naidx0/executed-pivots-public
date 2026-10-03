@@ -89,7 +89,7 @@ Linux or WSL2, Python 3.11+. No Docker, no GPU, no API key.
 
 Every claim here came from a pre-registered test: a win condition written down before the run, a sealed
 baseline (same rows, same seeds), and a keep or discard decision logged either way. The cloud ledger has 19 tests (H1 to H18):
-6 kept, 9 discarded, 4 paused or stopped. Tests H19 to H51 ran on a local machine; their results are summarised in [RESEARCH.md](RESEARCH.md). The discards are listed in [RESEARCH.md](RESEARCH.md) so nobody
+6 kept, 9 discarded, 4 paused or stopped. Tests H19 to H55 ran on a local machine; their results are summarised in [RESEARCH.md](RESEARCH.md). The discards are listed in [RESEARCH.md](RESEARCH.md) so nobody
 retries them. [program.md](program.md) lets you run the same loop on the reward yourself.
 
 ## The keystroke is not the effect
@@ -334,8 +334,23 @@ model (qwen3.5:4b), 4 per pivot, truth E from the task's own verifier:
 | Working steps paid, of 230 | 34 | 116 |
 | Failing steps paid | 0 | 2 |
 
-Paired sign test p = 1.6e-20. The 2 false credits are one pivot where the step sets the right files to the wrong
-mode: X hashes bytes, not permission bits. Comparing modes is the next change under test.
+Paired sign test p = 1.6e-20. That small model's steps, a red team and blind hand-written wrong steps found two holes
+there: a `chmod` to the wrong mode (X hashed bytes, not permission bits) and a merge written out by hand without
+`git merge` (the git index was probe noise). X now compares permission bits (H52) and each git repo's index (H55).
+Re-scored over 1,897 rows (both task families, the red team, controls and blind wrong steps), the false credits
+go from 11 to 0, no working credit is lost, and the probe takes 0.4% longer.
+
+**Nemotron on the same tasks (H54).** NVIDIA Nemotron Nano through Nebius Token Factory, 4 rollouts at each of the
+74 Terminal-Bench pivots, 292 labelled:
+
+| | J | X |
+|---|---|---|
+| Agrees with E, of 292 | 89 | 146 |
+| Right where the other is wrong | 0 | 57 |
+| Working steps paid, of 220 | 17 | 74 |
+| Failing steps paid | 0 | 0 |
+
+Paired sign test p = 1.4e-17.
 
 ### Multi-reference X (H44, H45)
 

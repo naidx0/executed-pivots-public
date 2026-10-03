@@ -108,6 +108,27 @@ def test_5xx_is_retried_and_4xx_is_not(fake):
     assert len(f.calls) == 1
 
 
+@pytest.mark.parametrize("code", [401, 402, 403])
+def test_a_billing_or_auth_error_stops_every_later_request(fake, code):
+    f = fake([("status", code)])
+    p = _policy(f.url, retries=2)
+    with pytest.raises(lp.LocalPolicyError, match=f"HTTP {code}"):
+        p.chat([{"role": "user", "content": "go"}])
+    for _ in range(3):  # sticky: no further request reaches the upstream
+        with pytest.raises(lp.LocalPolicyError, match="stopped"):
+            p.chat([{"role": "user", "content": "go"}])
+    assert len(f.calls) == 1 and p.stopped
+
+
+def test_a_plain_4xx_does_not_stop_later_requests(fake):
+    f = fake([("status", 400)])
+    p = _policy(f.url, retries=0)
+    with pytest.raises(lp.LocalPolicyError, match="HTTP 400"):
+        p.chat([{"role": "user", "content": "go"}])
+    assert p.chat([{"role": "user", "content": "go"}])["source"] == "content"
+    assert len(f.calls) == 2 and not p.stopped
+
+
 def test_refused_connection_is_retried_then_fails():
     p = _policy("http://127.0.0.1:9/v1", timeout_s=1, retries=1)  # discard port: nothing listens
     with pytest.raises(lp.LocalPolicyError, match="gave up after 2 attempts"):

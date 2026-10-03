@@ -31,11 +31,11 @@ import re
 import shlex
 import threading
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import asdict, dataclass, replace
 
 from .jreward import check_task_complete
-from .probe import DEFAULT_ROOTS, Effects, execute, listing_of
+from .probe import DEFAULT_ROOTS, NOISE_RE, Effects, execute, listing_of
 from .terminus import Command, keystrokes_to_script, parse_action
 
 try:
@@ -272,19 +272,25 @@ def effect_view(ref: Effects, cand: Effects, pre_listing: set[str]) -> tuple[dic
     return ref.meaningful_changes(), cand.meaningful_changes()
 
 
-def state_score(ref: Effects, cand: Effects, pre_listing: set[str]) -> tuple[float, dict]:
+def state_score(ref: Effects, cand: Effects, pre_listing: set[str], modes: bool = True) -> tuple[float, dict]:
     rc, cc = effect_view(ref, cand, pre_listing)
     rd, cd = ref.deleted_vs(pre_listing), cand.deleted_vs(pre_listing)
-    keys = set(rc) | set(cc) | rd | cd
+    # H52: a path both runs touched must end with the same permission bits. Only ever lowers a score: a mode
+    # mismatch is a half match, and a directory the view left out (its entries did not change) comes back as one.
+    mode_diff = {p for p in set(ref.modes) & set(cand.modes)
+                 if ref.modes[p] != cand.modes[p] and not NOISE_RE.search(p)} if modes else set()
+    keys = set(rc) | set(cc) | rd | cd | mode_diff
     detail = {"ref_changed": len(rc), "cand_changed": len(cc), "ref_deleted": len(rd), "cand_deleted": len(cd),
               "missing": sorted((set(rc) | rd) - (set(cc) | cd))[:20],
               "extra": sorted((set(cc) | cd) - (set(rc) | rd))[:20],
-              "destructive_extra": sorted(cd - rd)[:20]}
+              "destructive_extra": sorted(cd - rd)[:20], "mode_diff": sorted(mode_diff)[:20]}
     if not keys:
         return 1.0, detail
     s = 0.0
     for k in keys:
-        if k in rd and k in cd:
+        if k in mode_diff and not (k in rc and k in cc and rc[k] != cc[k]):
+            s += 0.5  # same bytes or an unchanged listing, different permission bits
+        elif k in rd and k in cd:
             s += 1
         elif k in rc and k in cc:
             if rc[k] == cc[k]:
@@ -357,7 +363,8 @@ class EffectJudge:
                  origin_gate: bool = True, continuation: bool = False, readonly_recall: bool = True,
                  readonly_linenums: bool = True, cwd_reset: bool = True, created_gate: bool = True,
                  references: dict[str, list[str]] | None = None, min_reference_agreement: float = 1.0,
-                 claim_rest: bool = True):
+                 claim_rest: bool = True, mode_gate: bool = True, git_gate: bool = True,
+                 effect_cache: bool = False):
         self.world = world  # any ForkableWorld; pivots' anchors are its checkpoints
         self.threshold = threshold
         self.state_weight = state_weight
@@ -388,6 +395,15 @@ class EffectJudge:
         # H49: an early task_complete is not penalised when the candidate's state already covers the state the
         # expert's rest of the episode leaves (see claim_covered)
         self.claim_rest = claim_rest
+        # H52: a path both runs touched must end with the same permission bits (see state_score, mode_mismatch)
+        self.mode_gate = mode_gate
+        # H55: every git repo under the roots must end with the expert's index (`git ls-files -s`), see score
+        self.git_gate = git_gate
+        # H53: a candidate batch already run at this pivot (same script, cwd and timeout) is not run again; its
+        # effects are reused. The expert's two runs are never cached (they measure determinism).
+        self.effect_cache = effect_cache
+        self._effects: dict[tuple, Future] = {}
+        self.effect_cache_hits = 0
         self._cache: dict[str, dict] = {}
         # One lock per pivot: under Gym, the G rollouts of a GRPO group reach /verify together, and without
         # it each of them ran the teacher twice before the first result landed in the cache.
@@ -400,6 +416,33 @@ class EffectJudge:
                       network=pivot.network, sweep=self.sweep)
         eff.warnings = warns
         return eff, warns
+
+    def _run_candidate(self, pivot: Pivot, cmds: list[Command]) -> tuple[Effects, list[str]]:
+        if not self.effect_cache:
+            return self._run(pivot, cmds)
+        script, warns = keystrokes_to_script(cmds)
+        key = (pivot.uuid, pivot.anchor, pivot.cwd, pivot.cmd_timeout, pivot.network, script)
+        with self._locks_guard:
+            fut = self._effects.get(key)
+            owner = fut is None
+            if owner:
+                fut = self._effects[key] = Future()
+            else:
+                self.effect_cache_hits += 1
+        if owner:
+            try:
+                eff, _ = self._run(pivot, cmds)
+            except BaseException as e:
+                with self._locks_guard:
+                    self._effects.pop(key, None)
+                fut.set_exception(e)
+                raise
+            if eff.backend_error:  # a failed run is not an effect: the next caller runs it again
+                with self._locks_guard:
+                    self._effects.pop(key, None)
+            fut.set_result(eff)
+        eff = fut.result()
+        return replace(eff, warnings=list(warns)), warns
 
     def _run_then(self, pivot: Pivot, cmds: list[Command], tail: str) -> tuple[Effects, str | None]:
         """Run the batch, a marker line, then the script `tail` in the same shell, under one probe. Returns the
@@ -622,7 +665,7 @@ class EffectJudge:
                  gate: bool | None = None, cwd_reset: bool = False, created: frozenset[str] = frozenset(),
                  early_ok: bool = False) -> dict:
         penalties = {}
-        st, detail = state_score(ref, cand, pre)
+        st, detail = state_score(ref, cand, pre, modes=self.mode_gate)
         out = output_f1(ref.output, cand.output)
         ref_has_state = bool(ref.meaningful_changes() or ref.deleted_vs(pre))
         if self.readonly_recall and not ref_has_state and not (cand.meaningful_changes() or cand.deleted_vs(pre)):
@@ -639,6 +682,16 @@ class EffectJudge:
             penalties["side_effects"] = 0.5
         if detail["destructive_extra"]:
             penalties["destructive"] = 0.3
+        if detail["mode_diff"]:
+            # H52: a path both runs touched ends with other permission bits. Averaged, one wrong chmod among
+            # the expert's four scored 0.8 (H50 tb-processing-pipeline:3, 2 false credits): a gate, like H20
+            penalties["mode_mismatch"] = 0.0
+        git_diff = sorted(r for r in ref.gitstage if cand.gitstage.get(r) != ref.gitstage[r]) if self.git_gate else []
+        if git_diff:
+            # H55: the repo's index (staged blobs, modes, unmerged stages) ends elsewhere than the expert's. Writing
+            # a merge's files and MERGE_HEAD by hand matched `git merge` file for file (H50 red team #306)
+            penalties["git_index_mismatch"] = 0.0
+            detail["git_index_diff"] = git_diff[:20]
         ref_err = len(ERROR_RE.findall(ref.output))
         cand_err = len(ERROR_RE.findall(cand.output))
         if cand_err > ref_err:
@@ -685,7 +738,7 @@ class EffectJudge:
             return ExecScore(0.0, 0.0, None, None, {}, "model_output_invalid", {"parse_error": pr.error})
         if not check_task_complete(pr.action.raw, prep["expected"]):
             return ExecScore(0.0, 0.0, None, None, {}, "task_complete_check_failed", {})
-        cand, warns = self._run(pivot, pr.action.commands)
+        cand, warns = self._run_candidate(pivot, pr.action.commands)
         if cand.backend_error:
             return ExecScore(0.0, 0.0, None, None, {}, "backend_error", {"error": cand.backend_error})
         reset = self.cwd_reset and next_resets_cwd(pivot.next_answer)

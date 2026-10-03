@@ -41,6 +41,7 @@ DIR_SIG_LOOP = ("while IFS= read -r -d \"\" __d; do printf 'D:%s  %s\\n' "
 # count). A step that edited or deleted the global npm copy without reinstalling it went unseen: H24-H27 only saw
 # the copy when the step itself reinstalled it. Other node_modules trees stay excluded, including those nested in a
 # global package. A listing that reaches GLOBAL_LIST_CAP reports no deletions there.
+GITSTAGE_CAP = 20  # H55: repos under the roots whose index is summarised
 GLOBAL_ROOTS = ("/usr/local/lib/node_modules", "/usr/local/bin")
 GLOBAL_PRUNE = ("*/node_modules", "*/__pycache__", "*/.cache")
 GLOBAL_LIST_CAP = 20000
@@ -71,6 +72,8 @@ class Effects:
     roots: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)   # exported shell variables after the batch
     procs: list[str] = field(default_factory=list)      # command lines of processes the batch left running
+    modes: dict[str, str] = field(default_factory=dict)  # H52: octal mode of each watched file or dir whose ctime moved
+    gitstage: dict[str, str] = field(default_factory=dict)  # H55: repo -> sha256 of `git ls-files -s` after the batch
     venv_s: float = 0.0                                 # seconds the H42 VENV section took (inside `elapsed`)
 
     def deleted_vs(self, pre_listing: set[str]) -> set[str]:
@@ -212,6 +215,10 @@ if [ -n "$__PE_ROOTS" ]; then
   find $__PE_ROOTS -xdev \\( {prune} \\) -prune -o -type l -newerct "@$__PE_T0" -printf 'L:%l  %p\\n' 2>/dev/null | head -n 2000
   find $__PE_ROOTS -xdev \\( {prune} \\) -prune -o -type d -newerct "@$__PE_T0" -printf 'D  %p\\n' 2>/dev/null | head -n 2000
 fi
+echo "{MARK} MODES"
+[ -n "$__PE_ROOTS" ] && find $__PE_ROOTS -xdev \\( {prune} \\) -prune -o \\( -type f -o -type d \\) -newerct "@$__PE_T0" -printf '%m  %p\\n' 2>/dev/null | head -n 7000
+echo "{MARK} GITSTAGE"
+[ -n "$__PE_ROOTS" ] && find $__PE_ROOTS -xdev \\( {prune} \\) -prune -o -path '*/.git/index' -type f -print 2>/dev/null | head -n {GITSTAGE_CAP} | while IFS= read -r __gi; do __r="${{__gi%/.git/index}}"; printf '%s  %s\\n' "$(git -c safe.directory='*' -C "$__r" ls-files -s 2>/dev/null | sha256sum | cut -c1-64)" "$__r"; done
 {watch}
 {venv_sec}
 {outside}
@@ -355,6 +362,34 @@ def parse_venv(stdout: str) -> tuple[dict[str, str], set[str], list[str], bool, 
     return changed, listing, trees, complete, (t1 - t0 if t0 is not None and t1 is not None else None)
 
 
+def parse_modes(stdout: str) -> dict[str, str]:
+    """H52: the MODES section, path -> octal mode for watched files and dirs whose ctime moved. A chmod leaves
+    the bytes alone, so without it a wrong mode read as the expert's effect (H50: 2 X false credits)."""
+    _, _, rest = stdout.partition(f"{MARK} MODES\n")
+    body = rest.split(MARK, 1)[0] if rest else ""
+    out = {}
+    for ln in body.splitlines():
+        mode, sep, path = ln.partition("  ")
+        if sep and mode.isdigit():
+            out[path] = mode
+    return out
+
+
+def parse_gitstage(stdout: str) -> dict[str, str]:
+    """H55: the GITSTAGE section, repo -> sha256 of `git ls-files -s` (mode, blob, stage, path of every index
+    entry) after the batch. The index file itself is noise (stat data changes on every run), so before H55 a step
+    that wrote a merge's files and MERGE_HEAD by hand, without the unmerged index entries, matched `git merge`
+    (H50 red team #306, tb-fix-git:3)."""
+    _, _, rest = stdout.partition(f"{MARK} GITSTAGE\n")
+    body = rest.split(MARK, 1)[0] if rest else ""
+    out = {}
+    for ln in body.splitlines():
+        h, sep, repo = ln.partition("  ")
+        if sep and len(h) == 64:
+            out[repo] = h
+    return out
+
+
 def parse_procs(stdout: str) -> list[str]:
     """Command lines the probe listed in its PROCS section (processes the batch left running)."""
     _, _, rest = stdout.partition(f"{MARK} PROCS\n")
@@ -460,6 +495,8 @@ def effects_from(world, anchor, op, roots: list[str], *, venv: bool = True) -> E
                        f"probe did not complete (exit {op.exit_code}): {op.stderr[-500:]}", op.duration_s, roots=[])
     output, code, fcwd, changed, listing, cmd_timed_out, env = parse_probe(op.stdout)
     procs = parse_procs(op.stdout)
+    modes = parse_modes(op.stdout)
+    gitstage = parse_gitstage(op.stdout)
     g_changed, g_listing, g_complete, _ = parse_global(op.stdout)
     v_changed, v_listing, v_dirs, v_complete, v_s = parse_venv(op.stdout)
     elapsed = op.duration_s
@@ -482,7 +519,8 @@ def effects_from(world, anchor, op, roots: list[str], *, venv: bool = True) -> E
     listing = listing | g_listing | (v_listing if v_complete else cfgs)
     roots = roots + v_dirs if v_complete else roots
     return Effects(output, code, fcwd, changed, listing, cmd_timed_out, None, elapsed, roots=roots,
-                   env=env, procs=procs, venv_s=(v_s or 0.0) if venv else 0.0)
+                   env=env, procs=procs, venv_s=(v_s or 0.0) if venv else 0.0, modes=modes,
+                   gitstage=gitstage)
 
 
 def _accepts_keep(world) -> bool:

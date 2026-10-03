@@ -55,6 +55,8 @@ DEFAULT_PORT = 8913
 # on an 8 GB card's context. A request's own values win.
 DEFAULT_PARAMS = {"temperature": 1.0, "top_p": 0.95, "max_tokens": 4096}
 RETRY_STATUSES = (429, 500, 502, 503, 504)
+# Auth, billing or quota: the first one stops this policy for good, so a paid run never keeps calling a refusing upstream.
+STOP_STATUSES = (401, 402, 403)
 
 
 class LocalPolicyError(RuntimeError):
@@ -108,6 +110,7 @@ class LocalPolicy:
         self.timeout_s, self.retries, self.backoff_s, self.sleep = timeout_s, retries, backoff_s, sleep
         self.params = {**DEFAULT_PARAMS, **({"max_tokens": max_tokens} if max_tokens else {})}
         self.attempts = 0
+        self.stopped = ""
         self._lock = threading.Lock()
 
     @classmethod
@@ -124,6 +127,8 @@ class LocalPolicy:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self._key:
             headers["Authorization"] = f"Bearer {self._key}"
+        if self.stopped:
+            raise LocalPolicyError(f"{method} {route}: stopped after {self.stopped}; no request sent")
         last = ""
         for attempt in range(self.retries + 1):
             with self._lock:
@@ -139,6 +144,8 @@ class LocalPolicy:
             except urllib.error.HTTPError as e:
                 text = e.read().decode("utf-8", "replace") if e.fp else ""
                 last = f"HTTP {e.code}: {text[:300]}"
+                if e.code in STOP_STATUSES:
+                    self.stopped = f"HTTP {e.code}"
                 if e.code not in RETRY_STATUSES:
                     raise LocalPolicyError(self.redact(f"{method} {route}: {last}")) from None
             except urllib.error.URLError as e:  # refused, reset, or a timeout wrapped by urllib

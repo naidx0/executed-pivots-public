@@ -58,7 +58,12 @@ X paid no failing step on any of them.
 **A second task family: Terminal-Bench (H50).** 12 of Terminal-Bench's easy tasks (third-party, Apache-2.0, own
 Dockerfiles and verifiers) ported unchanged. 292 labelled rollouts from a small local model: X agrees with E on 176,
 J on 96 (paired sign test p 1.6e-20). X paid 2 failing steps: both `chmod` the right files to the wrong mode, which the
-byte-only probe could not see. H52 (compare permission bits) is the fix under test.
+byte-only probe could not see. Its red team and blind wrong steps found 3 more, including a merge written out by
+hand. H50 was discarded as registered (5 false credits); the two fixes below closed every one.
+
+**Nemotron on Terminal-Bench (H54).** NVIDIA Nemotron Nano through Token Factory at the same 74 pivots, 292 labelled:
+X agrees with E on 146, J on 89; X right alone 57 times, J never (p 1.4e-17). Working steps paid X 74 / J 17 of 220.
+Failing steps paid 0 / 0.
 
 **Kept changes to X.**
 - H19: each world gets a frozen /var/log. H18: the hardened sandbox runner is the demo default (16 of 16 escapes blocked).
@@ -70,6 +75,10 @@ byte-only probe could not see. H52 (compare permission bits) is the fix under te
   (`data/references.jsonl`, 762 actions). Held out on H47: 164 to 189 working steps paid, 0 failing steps paid.
 - H46: the live rollout reward equals offline multi-reference X on 20 of 20 rows.
 - H49: an early "task complete" claim keeps its credit when the state already matches the end of the expert's episode.
+- H52 + H55: a path both runs touched must end with the same permission bits, and every git repo must end with the
+  expert's index (`git ls-files -s`). Over 1,897 rows: false credits 11 to 0, working credits unchanged, probe +0.4%.
+- H53: an opt-in effect cache. A candidate batch already run at a pivot reuses its effects: X equal on 292 of 292
+  rows, 24% fewer candidate runs, 17% less scoring time.
 
 **Discarded locally (do not retry).** H17 (1 false credit, fixed by H20), H21 (next-step convergence: 7 of 9
 hand-written attacks credited), H24 to H28 (npm blind spot, closed by H29), H41 (3 fixture false credits, closed by H42),
