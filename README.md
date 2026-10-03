@@ -52,7 +52,8 @@ reward. E is the truth: the task's own verifier after the step.
 
 | What was measured | J (keystrokes) | X (executed) | n | Source |
 |---|---:|---:|---|---|
-| Steps where the reward agrees with E, Terminal-Bench | 96 | **176** | of 292 steps on 12 third-party tasks, p = 1.6e-20 | [H50](#terminal-bench-a-second-task-family-h50) |
+| Steps where the reward agrees with E, Nemotron Nano on Terminal-Bench (via Nebius Token Factory) | 89 | **146** | of 292 steps on 12 third-party tasks, 0 false credits either side, p = 1.4e-17 | [H54](#terminal-bench-a-second-task-family-h50) |
+| Steps where the reward agrees with E, Terminal-Bench (small local model) | 96 | **176** | of 292 steps on 12 third-party tasks, p = 1.6e-20 | [H50](#terminal-bench-a-second-task-family-h50) |
 | Steps where the reward agrees with E, Nemotron Super | 55 | **88** | of 176 steps, 0 false credits either side | [H40](#every-real-policy-batch) |
 | Working student actions paid | 26 | **94** | of 286 working actions (E = 1), v5 audit | [v5 audit](#audit-with-claude-stand-ins-v5) |
 | Failing control actions paid | 34 | **0** | 186 controls built to fool a string match | [v5 audit](#audit-with-claude-stand-ins-v5) |
